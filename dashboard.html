@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Harsidhi Ventures - Live Analytics Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: #f3f6fb; min-height: 100vh; color: #1f2937; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+        
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 16px 24px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,.02); }
+        .dashboard-header h2 { font-size: 20px; color: #1e3a8a; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        
+        /* Silent Active Background Sync Indicator Widget Layout */
+        .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 6px 14px; border-radius: 20px; border: none; cursor: pointer; transition: 0.2s; }
+        .sync-indicator.syncing { color: #0284c7; background: #e0f2fe; }
+        .sync-indicator.syncing .dot { background: #0284c7; animation: pulse 1.5s infinite; }
+        .dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
+
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
+        .section-title { font-size: 15px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; border-left: 4px solid #2563eb; padding-left: 10px; margin-bottom: 5px; }
+        
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,.02); position: relative; overflow: hidden; }
+        .card h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        .card .big { font-size: 28px; font-weight: 700; color: #0f172a; margin-top: 8px; }
+        
+        .card-p-today { border-left: 5px solid #2563eb; }
+        .card-r-today { border-left: 5px solid #14b8a6; }
+        .card-p-yesterday { border-left: 5px solid #3b82f6; opacity: 0.9; }
+        .card-r-yesterday { border-left: 5px solid #06b6d4; opacity: 0.9; }
+        .card-p-total { border-left: 5px solid #1e3a8a; }
+        .card-r-total { border-left: 5px solid #0f766e; }
+        
+        .nav-card { cursor: pointer; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e5e7eb; font-weight: 600; font-size: 15px; text-align: center; color: #1e293b; display: flex; align-items: center; justify-content: center; height: 70px; border-radius: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.02); transition: 0.2s; }
+        .nav-card:hover { transform: translateY(-2px); border-color: #2563eb; color: #2563eb; box-shadow: 0 6px 15px rgba(37,99,235,0.08); }
+
+        .stat { display: flex; gap: 16px; background: #fff; padding: 14px 20px; border-radius: 14px; border: 1px solid #e5e7eb; font-size: 14px; font-weight: 600; color: #475569; }
+        .stat span { font-weight: 700; margin-left: 4px; }
+        #saved_count { color: #10b981; }
+        #pending_count { color: #2563eb; }
+
+        .activity-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,.02); }
+        .activity-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; }
+        .activity-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; font-size: 13px; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .badge-pickup { background: #dbeafe; color: #1e40af; }
+        .badge-return { background: #ccfbf1; color: #115e59; }
+
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 12px 16px; border-radius: 12px; z-index: 9999; box-shadow: 0 8px 20px rgba(0, 0, 0, .2); font-size: 13px; }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Dashboard Header Panel -->
+        <div class="dashboard-header">
+            <h2>🏠 Home Dashboard (<span id="monthTitle">...</span>)</h2>
+            <button id="syncButton" class="sync-indicator" onclick="refreshDashboardData()">
+                <div class="dot"></div> <span id="syncStatusLabel">Data Cached</span>
+            </button>
+        </div>
+
+        <!-- Metric Counter Grid System -->
+        <div class="section-title">Daily Operations Stats</div>
+        <div class="cards">
+            <div class="card card-p-today"><h3>Pickup Today</h3><div class="big" id="pickup_today">0</div></div>
+            <div class="card card-r-today"><h3>Return Today</h3><div class="big" id="return_today">0</div></div>
+            <div class="card card-p-yesterday"><h3>Pickup Yesterday</h3><div class="big" id="pickup_yesterday">0</div></div>
+            <div class="card card-r-yesterday"><h3>Return Yesterday</h3><div class="big" id="return_yesterday">0</div></div>
+            <div class="card card-p-total"><h3>MTD Pickup</h3><div class="big" id="pickup_total">0</div></div>
+            <div class="card card-r-total"><h3>MTD Return</h3><div class="big" id="return_total">0</div></div>
+        </div>
+
+        <!-- Volume Accumulators Inline Badges -->
+        <div class="stat">
+            <div>Processed Scans (Today Total): <span id="saved_count">0</span></div>
+            <div>Total MTD Volume: <span id="pending_count">0</span></div>
+        </div>
+
+        <!-- Recent Sheet Entries Live Stream Grid -->
+        <div class="activity-panel">
+            <div class="section-title">Latest Live Activity Stream (Recent Sheet Rows)</div>
+            <div class="activity-list" id="activityStreamBox">
+                <div style="color: gray; font-style: italic; font-size: 13px; padding: 10px;">Loading live activity stream...</div>
+            </div>
+        </div>
+          
+        <!-- Bottom Quick Jump Controls Structure -->
+        <div class="section-title">Quick Routing Access</div>
+        <div class="cards" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="nav-card" onclick="go('daily.html')">📲 Daily Scan Window</div>
+            <div class="nav-card" onclick="go('lookup.html')">🔍 Find & Sync Order</div>
+            <div class="nav-card" onclick="go('sheet-data.html')">📋 Sheet Master Data</div>
+        </div>
+    </div>
+
+    <script>
+        /* ===================================
+        CONFIG (Using your active deployment script node)
+        =================================== */
+        const API_URL = "https://script.google.com/macros/s/AKfycbzsHi0bVG1dFA2A_cK63DmtCM1f_OQd7VgehN7znb36l1C5VHisTBBu8qRrUPffMA9U/exec";[cite: 5]
+
+        function go(page) { window.location.href = page; }
+
+        /* ===================================
+        INSTANT LOCAL STORAGE CACHE RENDER ENGINE
+        =================================== */
+        function loadCachedData() {
+            const cache = localStorage.getItem("hv_dashboard_cache");
+            if (!cache) return false;
+
+            try {
+                const data = JSON.parse(cache);
+                
+                // Render counters instantly from browser disk memory (0ms latency view)
+                document.getElementById("pickup_today").innerText = data.todayPickup || 0;
+                document.getElementById("return_today").innerText = data.todayReturn || 0;
+                document.getElementById("pickup_yesterday").innerText = data.yesterdayPickup || 0;
+                document.getElementById("return_yesterday").innerText = data.yesterdayReturn || 0;
+                document.getElementById("pickup_total").innerText = data.monthPickup || 0;
+                document.getElementById("return_total").innerText = data.monthReturn || 0;
+                document.getElementById("monthTitle").innerText = data.monthName || "Active Month";
+                document.getElementById("saved_count").innerText = (data.todayPickup || 0) + (data.todayReturn || 0);
+                document.getElementById("pending_count").innerText = (data.monthPickup || 0) + (data.monthReturn || 0);
+                
+                if (data.recentRows) { renderLiveStream(data.recentRows); }
+                return true;
+            } catch(e) { return false; }
+        }
+
+        /* ===================================
+        SILENT BACKGROUND REFRESH (ANTI-SCREEN FREEZE)
+        =================================== */
+        async function refreshDashboardData() {
+            setSyncState(true);
+            try {
+                // Hitting multiple endpoints in parallel wave
+                const [dbRes, recentRes] = await Promise.all([
+                    fetch(`${API_URL}?action=getDashboardCounts`).then(r => r.json()),[cite: 5]
+                    fetch(`${API_URL}?action=getRecentRecords`).then(r => r.json())[cite: 5]
+                ]);
+
+                if (dbRes.success) {
+                    // Injecting updated cells instantly
+                    document.getElementById("pickup_today").innerText = dbRes.todayPickup || 0;
+                    document.getElementById("return_today").innerText = dbRes.todayReturn || 0;
+                    document.getElementById("pickup_yesterday").innerText = dbRes.yesterdayPickup || 0;
+                    document.getElementById("return_yesterday").innerText = dbRes.yesterdayReturn || 0;
+                    document.getElementById("pickup_total").innerText = dbRes.monthPickup || 0;
+                    document.getElementById("return_total").innerText = dbRes.monthReturn || 0;
+                    document.getElementById("monthTitle").innerText = dbRes.monthName || "Active Month";
+                    document.getElementById("saved_count").innerText = (dbRes.todayPickup || 0) + (dbRes.todayReturn || 0);
+                    document.getElementById("pending_count").innerText = (dbRes.monthPickup || 0) + (dbRes.monthReturn || 0);
+
+                    const recentRows = recentRes.success ? (recentRes.rows || []) : [];[cite: 5]
+                    renderLiveStream(recentRows);
+
+                    // Writing back state object to browser memory storage
+                    const cacheObject = { ...dbRes, recentRows: recentRows };
+                    localStorage.setItem("hv_dashboard_cache", JSON.stringify(cacheObject));
+                }
+            } catch (err) {
+                console.error("Background sync pipeline stalled.", err);
+            } finally {
+                setSyncState(false);
+            }
+        }
+
+        function renderLiveStream(rows) {
+            const streamBox = document.getElementById("activityStreamBox");
+            if (!rows || rows.length === 0) {
+                streamBox.innerHTML = `<div style="color: gray; font-style: italic; font-size: 13px; padding: 10px;">No recent records captured.</div>`;
+                return;
+            }
+            let html = "";
+            rows.slice(0, 6).forEach(r => {
+                const badgeClass = r.type === "Pickup" ? "badge-pickup" : "badge-return";
+                html += `
+                    <div class="activity-item">
+                        <div>
+                            <span class="badge ${badgeClass}">${r.type}</span>
+                            <strong style="margin-left:8px;">${r.awb}</strong>
+                            <span style="color:gray; font-size:11px; margin-left:8px;">(Order: ${r.orderId || 'N/A'})</span>
+                        </div>
+                        <div style="font-weight:600; color:#4b5563;">${r.courier || 'MANUAL'} | <span style="color:#2563eb;">${r.status || 'Scanned'}</span></div>
+                    </div>`;
+            });
+            streamBox.innerHTML = html;
+        }
+
+        function setSyncState(isSyncing) {
+            const btn = document.getElementById("syncButton");
+            const lbl = document.getElementById("syncStatusLabel");
+            if (isSyncing) {
+                btn.classList.add("syncing");
+                lbl.innerText = "Syncing Live...";
+            } else {
+                btn.classList.remove("syncing");
+                lbl.innerText = "Data Cached";
+            }
+        }
+
+        window.onload = function() {
+            // 1. Instantly present data matrices from browser disk space memory
+            loadCachedData();
+            
+            // 2. Run background sync wave asynchronously 
+            refreshDashboardData();
+            
+            // Auto refresh state intervals every 45 seconds natively
+            setInterval(refreshDashboardData, 45000);[cite: 5]
+        };
+    </script>
+</body>
+</html>
